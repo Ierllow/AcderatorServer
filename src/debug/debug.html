@@ -1,0 +1,222 @@
+﻿<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Acderator API Debug</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f7f7f8;
+      color: #171717;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; }
+    main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 24px; margin: 0 0 18px; }
+    label { display: block; font-size: 13px; font-weight: 650; margin-bottom: 6px; }
+    input, select, textarea, button {
+      font: inherit;
+      width: 100%;
+      border: 1px solid #c8c8cc;
+      border-radius: 6px;
+      background: #fff;
+      color: #171717;
+    }
+    input, select { height: 38px; padding: 0 10px; }
+    textarea {
+      min-height: 260px;
+      resize: vertical;
+      padding: 10px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    button {
+      width: auto;
+      min-width: 112px;
+      height: 38px;
+      padding: 0 14px;
+      cursor: pointer;
+      background: #1f2937;
+      color: #fff;
+      border-color: #1f2937;
+    }
+    button.secondary { background: #fff; color: #171717; border-color: #c8c8cc; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .row { display: grid; grid-template-columns: 150px 1fr 1fr; gap: 10px; align-items: end; margin-bottom: 14px; }
+    .panel {
+      background: #fff;
+      border: 1px solid #dedee3;
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .actions { display: flex; gap: 10px; align-items: center; margin: 14px 0; }
+    .status { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; }
+    .headers { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-bottom: 8px; }
+    .headers button { min-width: 38px; }
+    @media (max-width: 820px) {
+      main { padding: 16px; }
+      .grid, .row { grid-template-columns: 1fr; }
+      .headers { grid-template-columns: 1fr; }
+      button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Acderator API Debug</h1>
+
+    <div class="panel">
+      <div class="row">
+        <div>
+          <label for="method">Method</label>
+          <select id="method">
+            <option>POST</option>
+            <option>GET</option>
+          </select>
+        </div>
+        <div>
+          <label for="endpoint">Endpoint</label>
+          <input id="endpoint" value="/auth/login" />
+        </div>
+        <div>
+          <label for="preset">Preset</label>
+          <select id="preset">
+            <option value="/auth/login">/auth/login</option>
+            <option value="/auth/register">/auth/register</option>
+            <option value="/score/begin">/score/begin</option>
+            <option value="/score/submit">/score/submit</option>
+            <option value="/user/data">/user/data</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Headers</label>
+      <div id="headers"></div>
+      <div class="actions">
+        <button class="secondary" id="addHeader">Add Header</button>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top: 16px;">
+      <section class="panel">
+        <label for="requestBody">Request JSON</label>
+        <textarea id="requestBody">{
+  "userid": "",
+  "password": ""
+}</textarea>
+      </section>
+      <section class="panel">
+        <label for="responseBody">Response</label>
+        <textarea id="responseBody" readonly></textarea>
+      </section>
+    </div>
+
+    <div class="actions">
+      <button id="send">Send</button>
+      <button class="secondary" id="format">Format JSON</button>
+      <span class="status" id="status"></span>
+    </div>
+  </main>
+
+  <script type="module">
+    import { encode, decode } from "https://cdn.jsdelivr.net/npm/@msgpack/msgpack@3.0.0/+esm";
+
+    const method = document.getElementById("method");
+    const endpoint = document.getElementById("endpoint");
+    const preset = document.getElementById("preset");
+    const headers = document.getElementById("headers");
+    const requestBody = document.getElementById("requestBody");
+    const responseBody = document.getElementById("responseBody");
+    const status = document.getElementById("status");
+
+    const samples = {
+      "/auth/login": { method: "POST", body: { userid: "", password: "" } },
+      "/auth/register": { method: "POST", body: { uuid: "" } },
+      "/score/begin": { method: "POST", body: { score_id: 1 }, auth: true },
+      "/score/submit": { method: "POST", body: { session_id: "", score: 0 }, auth: true },
+      "/user/data": { method: "GET", body: {}, auth: true }
+    };
+
+    function addHeaderRow(key = "", value = "") {
+      const row = document.createElement("div");
+      row.className = "headers";
+      row.innerHTML = `
+        <input aria-label="Header name" placeholder="Header" value="${key}">
+        <input aria-label="Header value" placeholder="Value" value="${value}">
+        <button class="secondary" type="button">x</button>
+      `;
+      row.querySelector("button").addEventListener("click", () => row.remove());
+      headers.appendChild(row);
+    }
+
+    function collectHeaders() {
+      const result = new Headers();
+      result.set("Content-Type", "application/x-msgpack");
+      for (const row of headers.querySelectorAll(".headers")) {
+        const inputs = row.querySelectorAll("input");
+        const key = inputs[0].value.trim();
+        const value = inputs[1].value;
+        if (key) result.set(key, value);
+      }
+      return result;
+    }
+
+    function applyPreset(path) {
+      const sample = samples[path];
+      endpoint.value = path;
+      method.value = sample.method;
+      requestBody.value = JSON.stringify(sample.body, null, 2);
+      headers.innerHTML = "";
+      addHeaderRow("header", JSON.stringify({ master: "" }));
+      if (sample.auth) addHeaderRow("Authorization", "Bearer ");
+    }
+
+    document.getElementById("addHeader").addEventListener("click", () => addHeaderRow());
+    document.getElementById("format").addEventListener("click", () => {
+      requestBody.value = JSON.stringify(JSON.parse(requestBody.value || "{}"), null, 2);
+    });
+    preset.addEventListener("change", () => applyPreset(preset.value));
+
+    document.getElementById("send").addEventListener("click", async () => {
+      status.textContent = "sending...";
+      responseBody.value = "";
+
+      try {
+        const json = requestBody.value.trim() ? JSON.parse(requestBody.value) : {};
+        const options = {
+          method: method.value,
+          headers: collectHeaders()
+        };
+        if (method.value !== "GET") options.body = encode(json);
+
+        const started = performance.now();
+        const response = await fetch(endpoint.value, options);
+        const elapsed = Math.round(performance.now() - started);
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        let decoded = null;
+        try {
+          decoded = bytes.length ? decode(bytes) : null;
+        } catch {
+          decoded = new TextDecoder().decode(bytes);
+        }
+
+        status.textContent = `${response.status} ${response.statusText} ${elapsed}ms ${bytes.length}bytes`;
+        responseBody.value = JSON.stringify({
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
+          body: decoded
+        }, null, 2);
+      } catch (error) {
+        status.textContent = "failed";
+        responseBody.value = String(error.stack || error);
+      }
+    });
+
+    applyPreset("/auth/login");
+  </script>
+</body>
+</html>

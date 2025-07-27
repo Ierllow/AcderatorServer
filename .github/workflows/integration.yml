@@ -1,0 +1,214 @@
+name: integration
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: acderator
+          MARIADB_USER: acderator
+          MARIADB_PASSWORD: acderator
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+
+    env:
+      DATABASE_URL: mysql://acderator:acderator@127.0.0.1:3306/acderator
+      MASTER_DATA_PATH: ${{ github.workspace }}/ci_master.json
+      RATE_LIMIT_MAX_REQUESTS: 1000
+      RATE_LIMIT_WINDOW_SECONDS: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install MariaDB client and Python deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mariadb-client python3-pip curl
+          python3 -m pip install msgpack
+
+      - name: Wait for MariaDB
+        run: |
+          for i in {1..30}; do
+            mariadb-admin ping -h 127.0.0.1 -uroot -proot && exit 0
+            sleep 2
+          done
+          exit 1
+
+      - name: Apply migrations
+        run: |
+          mariadb -h 127.0.0.1 -uroot -proot acderator < migrations/20250727114537_acderator_master_table.sql
+          mariadb -h 127.0.0.1 -uroot -proot acderator < migrations/20250727114537_acderator_transaction_table.sql
+
+      - name: Create master fixture
+        run: |
+          cat > ci_master.json <<'EOF'
+          {
+            "version_master": "1",
+            "title_masters": [],
+            "song_select_masters": [],
+            "song_masters": [
+              {
+                "sid": 1,
+                "group": 1,
+                "difficulty": 1,
+                "name": "ci-song",
+                "composer": "ci",
+                "start_offset": 0.0,
+                "bg": 1
+              }
+            ],
+            "score_rate_masters": [],
+            "base_score_masters": [
+              {
+                "score": 1000000
+              }
+            ],
+            "judge_zone_masters": [],
+            "base_hp_masters": [
+              {
+                "hp": 100
+              }
+            ],
+            "hp_rate_masters": [],
+            "sound_sheet_masters": [],
+            "result_masters": []
+          }
+          EOF
+
+      - name: Start server (normal)
+        run: |
+          nohup cargo run > server.log 2>&1 &
+          echo $! > server.pid
+
+      - name: Wait for server (normal)
+        run: |
+          for i in {1..60}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/ || true)
+            if [ "$code" != "000" ]; then
+              echo "server is up with HTTP $code"
+              cat server.log || true
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "server did not start in time"
+          cat server.log || true
+          exit 1
+
+      - name: Smoke test normal mode
+        run: |
+          python3 - <<'PY'
+          import json
+          import msgpack
+          import urllib.request
+
+          def post(path, payload, token=None):
+              req = urllib.request.Request(
+                  "http://127.0.0.1:3000" + path,
+                  data=msgpack.packb(payload, use_bin_type=True),
+                  method="POST",
+                  headers={
+                      "Content-Type": "application/x-msgpack",
+                      "header": json.dumps({"master": "1"}),
+                      **({"Authorization": f"Bearer {token}"} if token else {})
+                  },
+              )
+              with urllib.request.urlopen(req) as res:
+                  body = msgpack.unpackb(res.read(), raw=False)
+                  return res.status, body
+
+          status, body = post("/auth/register", {"uuid": "ci-user-1"})
+          assert status == 200, (status, body)
+          token = body["token"]
+
+          status, body = post("/score/begin", {"score_id": 1}, token=token)
+          assert status == 200, (status, body)
+          score_session = body["session_id"]
+
+          status, body = post("/score/submit", {"session_id": score_session, "score": 999999}, token=token)
+          assert status == 200, (status, body)
+
+          req = urllib.request.Request(
+              "http://127.0.0.1:3000/user/data",
+              method="GET",
+              headers={
+                  "Content-Type": "application/x-msgpack",
+                  "header": json.dumps({"master": "1"}),
+                  "Authorization": f"Bearer {token}",
+              },
+          )
+          with urllib.request.urlopen(req) as res:
+              body = msgpack.unpackb(res.read(), raw=False)
+              assert res.status == 200, (res.status, body)
+              assert "scores" in body, body
+
+          print("normal mode smoke test passed")
+          PY
+
+      - name: Stop server (normal)
+        if: always()
+        run: |
+          kill "$(cat server.pid)" || true
+          sleep 2
+          pkill -f AcderatorSV || true
+          cat server.log || true
+
+      - name: Start server (debug-ui)
+        run: |
+          nohup cargo run --features debug-ui > server-debug.log 2>&1 &
+          echo $! > server-debug.pid
+
+      - name: Wait for server (debug-ui)
+        run: |
+          for i in {1..60}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/debug || true)
+            if [ "$code" = "200" ]; then
+              echo "debug-ui is up"
+              cat server-debug.log || true
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "debug-ui did not start in time"
+          cat server-debug.log || true
+          exit 1
+
+      - name: Smoke test debug-ui
+        run: |
+          python3 - <<'PY'
+          import urllib.request
+          with urllib.request.urlopen("http://127.0.0.1:3000/debug") as res:
+              body = res.read().decode("utf-8")
+              assert res.status == 200, res.status
+              assert "<title>Acderator API Debug</title>" in body
+          print("debug-ui smoke test passed")
+          PY
+
+      - name: Stop server (debug-ui)
+        if: always()
+        run: |
+          kill "$(cat server-debug.pid)" || true
+          sleep 2
+          pkill -f AcderatorSV || true
+          cat server-debug.log || true

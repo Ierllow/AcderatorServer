@@ -1,0 +1,267 @@
+﻿<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Acderator Master Debug</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f7f7f8;
+      color: #171717;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; }
+    main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 24px; margin: 0 0 18px; }
+    h2 { font-size: 16px; margin: 0 0 10px; }
+    .topbar { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 16px; }
+    .panel {
+      background: #fff;
+      border: 1px solid #dedee3;
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .wide { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+    .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .metric { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 24px; }
+    .label { color: #5f6368; font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
+    button, input {
+      height: 38px;
+      border: 1px solid #c8c8cc;
+      border-radius: 6px;
+      font: inherit;
+      background: #fff;
+      color: #171717;
+    }
+    button { cursor: pointer; padding: 0 14px; background: #1f2937; color: #fff; border-color: #1f2937; }
+    input { width: 100%; padding: 0 10px; margin-bottom: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-bottom: 1px solid #e4e4e7; padding: 8px; text-align: left; }
+    th { color: #5f6368; font-weight: 650; }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+      max-height: 520px;
+      overflow: auto;
+    }
+    a { color: #1f4ed8; text-decoration: none; }
+    @media (max-width: 900px) {
+      main { padding: 16px; }
+      .grid, .wide { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="topbar">
+      <div>
+        <h1>Master Data Debug</h1>
+        <div id="version" class="label"></div>
+      </div>
+      <div>
+        <a href="/debug">API Debug</a>
+        <button id="reload" type="button" style="margin-left: 10px;">Reload</button>
+      </div>
+    </div>
+
+    <section class="grid" id="counts"></section>
+
+    <section class="grid" style="margin-top: 16px;">
+      <div class="panel">
+        <div class="metric" id="currentVersion">-</div>
+        <div class="label">current DB version_master</div>
+      </div>
+      <div class="panel">
+        <div class="metric" id="currentBaseScore">-</div>
+        <div class="label">current DB base_score</div>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top: 16px;">
+      <h2>DB Edit</h2>
+      <div class="label" style="margin-bottom: 12px;">
+        These controls update database rows only. static/master/data.json is not changed.
+      </div>
+
+      <div class="form-grid">
+        <div>
+          <input id="editVersion" placeholder="version_master" />
+          <button id="saveVersion" type="button">Save Version</button>
+        </div>
+        <div>
+          <input id="editBaseScore" type="number" placeholder="base score" />
+          <button id="saveBaseScore" type="button">Save Base Score</button>
+        </div>
+        <div>
+          <input id="editSid" type="number" placeholder="sid" />
+          <input id="editGroup" type="number" placeholder="group" />
+          <input id="editDifficulty" type="number" placeholder="difficulty" />
+          <input id="editName" placeholder="name" />
+          <input id="editComposer" placeholder="composer" />
+          <input id="editStartOffset" type="number" step="0.001" placeholder="start offset" />
+          <input id="editBg" type="number" placeholder="bg" />
+          <button id="saveSong" type="button">Save Song</button>
+        </div>
+      </div>
+      <div id="saveStatus" class="label" style="margin-top: 12px;"></div>
+    </section>
+
+    <section class="wide">
+      <div class="panel">
+        <h2>Songs</h2>
+        <input id="songFilter" placeholder="Filter by sid, name, composer" />
+        <table>
+          <thead>
+            <tr>
+              <th>sid</th>
+              <th>group</th>
+              <th>difficulty</th>
+              <th>name</th>
+              <th>composer</th>
+            </tr>
+          </thead>
+          <tbody id="songs"></tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h2>Raw JSON</h2>
+        <pre id="raw"></pre>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const version = document.getElementById("version");
+    const counts = document.getElementById("counts");
+    const songs = document.getElementById("songs");
+    const raw = document.getElementById("raw");
+    const songFilter = document.getElementById("songFilter");
+    const saveStatus = document.getElementById("saveStatus");
+    const currentVersion = document.getElementById("currentVersion");
+    const currentBaseScore = document.getElementById("currentBaseScore");
+    let data = null;
+
+    function renderCounts(countMap) {
+      counts.innerHTML = "";
+      for (const [key, value] of Object.entries(countMap)) {
+        const card = document.createElement("div");
+        card.className = "panel";
+        card.innerHTML = `<div class="metric">${value}</div><div class="label">${key}</div>`;
+        counts.appendChild(card);
+      }
+    }
+
+    function renderSongs() {
+      const query = songFilter.value.trim().toLowerCase();
+      const rows = (data.raw.song_masters || []).filter((song) => {
+        if (!query) return true;
+        return [song.sid, song.name, song.composer, song.group, song.difficulty]
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+      });
+
+      songs.innerHTML = rows.map((song) => `
+        <tr>
+          <td>${song.sid}</td>
+          <td>${song.group}</td>
+          <td>${song.difficulty}</td>
+          <td>${song.name}</td>
+          <td>${song.composer}</td>
+        </tr>
+      `).join("");
+    }
+
+    async function load() {
+      const response = await fetch("/debug/master/data");
+      data = await response.json();
+      version.textContent = `version_master: ${data.version || "(empty)"}`;
+      currentVersion.textContent = data.version || "(empty)";
+      currentBaseScore.textContent = data.base_score ?? "(empty)";
+      document.getElementById("editVersion").value = data.version || "";
+      const baseScore = data.base_score ?? (data.raw.base_score_masters || [])[0]?.score;
+      document.getElementById("editBaseScore").value = baseScore ?? "";
+      const firstSong = (data.raw.song_masters || [])[0];
+      if (firstSong) {
+        document.getElementById("editSid").value = firstSong.sid;
+        document.getElementById("editGroup").value = firstSong.group;
+        document.getElementById("editDifficulty").value = firstSong.difficulty;
+        document.getElementById("editName").value = firstSong.name;
+        document.getElementById("editComposer").value = firstSong.composer;
+        document.getElementById("editStartOffset").value = firstSong.start_offset;
+        document.getElementById("editBg").value = firstSong.bg;
+      }
+      renderCounts(data.counts);
+      raw.textContent = JSON.stringify(data.raw, null, 2);
+      renderSongs();
+    }
+
+    document.getElementById("reload").addEventListener("click", load);
+    songFilter.addEventListener("input", renderSongs);
+    async function postJson(path, body) {
+      saveStatus.textContent = "saving...";
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const text = await response.text();
+      const json = text ? JSON.parse(text) : {};
+      if (!response.ok) throw new Error(text || `${response.status} ${response.statusText}`);
+      saveStatus.textContent = json.message || "saved";
+      await load();
+    }
+
+    document.getElementById("saveVersion").addEventListener("click", async () => {
+      try {
+        await postJson("/debug/master/version", {
+          version: document.getElementById("editVersion").value
+        });
+      } catch (error) {
+        saveStatus.textContent = String(error.message || error);
+        alert(saveStatus.textContent);
+      }
+    });
+
+    document.getElementById("saveBaseScore").addEventListener("click", async () => {
+      try {
+        await postJson("/debug/master/base-score", {
+          score: Number(document.getElementById("editBaseScore").value)
+        });
+      } catch (error) {
+        saveStatus.textContent = String(error.message || error);
+        alert(saveStatus.textContent);
+      }
+    });
+
+    document.getElementById("saveSong").addEventListener("click", async () => {
+      try {
+        await postJson("/debug/master/song", {
+          sid: Number(document.getElementById("editSid").value),
+          group: Number(document.getElementById("editGroup").value),
+          difficulty: Number(document.getElementById("editDifficulty").value),
+          name: document.getElementById("editName").value,
+          composer: document.getElementById("editComposer").value,
+          start_offset: Number(document.getElementById("editStartOffset").value),
+          bg: Number(document.getElementById("editBg").value)
+        });
+      } catch (error) {
+        saveStatus.textContent = String(error.message || error);
+        alert(saveStatus.textContent);
+      }
+    });
+    load().catch((error) => {
+      raw.textContent = String(error.stack || error);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+name: lint
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --all --check
+
+      - name: Check without features
+        run: cargo check --all-targets
+
+      - name: Check with debug-ui
+        run: cargo check --all-targets --features debug-ui
+
+      - name: Clippy without features
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Clippy with debug-ui
+        run: cargo clippy --all-targets --features debug-ui -- -D warnings

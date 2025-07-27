@@ -1,0 +1,62 @@
+{
+  "titles": [
+    { "tid": 1 },
+    { "tid": 2 }
+  ],
+  "song_selects": [
+    {
+      "group": 0,
+      "start_song_time": 10,
+      "song_time": 120
+    }
+  ],
+  "songs": [
+    {
+      "sid": 1,
+      "group": 0,
+      "difficulty": 5,
+      "name": "Test Song 1",
+      "composer": "Composer A",
+      "start_offset": 1.5,
+      "bg": 101
+    },
+    {
+      "sid": 2,
+      "group": 0,
+      "difficulty": 10,
+      "name": "Test Song 2",
+      "composer": "Composer B",
+      "start_offset": 0.0,
+      "bg": 102
+    }
+  ],
+  "score_rates": [
+    { "r_type": 1, "rate": 1.0 },
+    { "r_type": 2, "rate": 0.8 }
+  ],
+  "base_scores": [
+    { "score": 100000 }
+  ],
+  "judge_zones": [
+    { "j_type": 1, "zone": 0.033 },
+    { "j_type": 2, "zone": 0.066 }
+  ],
+  "base_hps": [
+    { "hp": 1000 }
+  ],
+  "hp_rates": [
+    { "j_type": 1, "rate": 10 },
+    { "j_type": 2, "rate": 5 }
+  ],
+  "sound_sheets": [
+    {
+      "category": 1,
+      "id": 1,
+      "sheet_name": "BGM_Sheet",
+      "cue_name": "BGM_001"
+    }
+  ],
+  "results": [
+    { "rid": 100 }
+  ]
+}

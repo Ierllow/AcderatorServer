@@ -9,7 +9,6 @@ dependencies = [
  "anyhow",
  "axum",
  "chrono",
- "dotenvy",
  "rand",
  "rmp-serde",
  "serde",

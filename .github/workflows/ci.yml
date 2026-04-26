@@ -1,0 +1,15 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - feature/**
+  pull_request:
+
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+
+  integration:
+    uses: ./.github/workflows/integration.yml

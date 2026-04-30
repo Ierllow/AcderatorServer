@@ -6,6 +6,7 @@ use axum::{async_trait, extract::FromRequestParts, http::request::Parts};
 use serde::Serialize;
 use sqlx::MySqlPool;
 
+pub mod api;
 pub mod lib;
 
 #[derive(Serialize)]

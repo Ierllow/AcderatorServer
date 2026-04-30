@@ -28,12 +28,12 @@ async fn main() {
     };
 
     let app = Router::new()
-        .merge(auth::lib::routes())
-        .merge(score::lib::routes())
-        .merge(user::lib::routes());
+        .merge(auth::api::routes())
+        .merge(score::api::routes())
+        .merge(user::api::routes());
 
     #[cfg(feature = "debug-ui")]
-    let app = app.merge(debug::routes());
+    let app = app.merge(debug::api::routes());
 
     let app = app
         .layer(middleware::from_fn_with_state(

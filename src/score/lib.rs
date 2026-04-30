@@ -6,16 +6,10 @@ use crate::query::{
     song::{SongFilter, SongQuery},
 };
 use crate::score::*;
-use axum::{extract::State, routing::post, Router};
+use axum::extract::State;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/score/begin", post(score_begin))
-        .route("/score/submit", post(score_submit))
-}
-
-async fn score_begin(
+pub(super) async fn score_begin(
     State(state): State<AppState>,
     user: AuthUser,
     Msgpack(req): Msgpack<ScoreBeginRequest>,
@@ -50,7 +44,7 @@ async fn score_begin(
     }))
 }
 
-async fn score_submit(
+pub(super) async fn score_submit(
     State(state): State<AppState>,
     user: AuthUser,
     Msgpack(req): Msgpack<ScoreSubmitRequest>,

@@ -2,9 +2,8 @@ use crate::query::song::SongRecord;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub use lib::routes;
-
-mod lib;
+pub mod api;
+pub mod lib;
 
 #[derive(Serialize)]
 struct MasterDebugData {

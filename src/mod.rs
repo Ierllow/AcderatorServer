@@ -1,3 +1,13 @@
+#[macro_export]
+macro_rules! routes {
+    ($($method:ident $path:literal => $handler:expr),+ $(,)?) => {{
+        ::axum::Router::new()
+            $(
+                .route($path, ::axum::routing::$method($handler))
+            )+
+    }};
+}
+
 pub mod auth;
 pub mod common;
 #[cfg(feature = "debug-ui")]

@@ -6,18 +6,11 @@ use crate::query::{
     session::SessionQuery,
     user::{UserFilter, UserQuery},
 };
-use axum::http::HeaderMap;
-use axum::{extract::State, routing::post, Router};
+use axum::{extract::State, http::HeaderMap};
 use rand::{thread_rng, Rng};
 use uuid::Uuid;
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/auth/login", post(login))
-        .route("/auth/register", post(register))
-}
-
-async fn login(
+pub(super) async fn login(
     State(state): State<AppState>,
     headers: HeaderMap,
     Msgpack(req): Msgpack<LoginRequest>,
@@ -70,7 +63,7 @@ async fn login(
     }))
 }
 
-async fn register(
+pub(super) async fn register(
     State(state): State<AppState>,
     headers: HeaderMap,
     Msgpack(req): Msgpack<RegisterRequest>,

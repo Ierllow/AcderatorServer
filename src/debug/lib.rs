@@ -5,36 +5,23 @@ use super::{
 use crate::common::{AppError, AppState};
 use crate::query::master::{BaseScoreQuery, MasterVersionQuery};
 use crate::query::song::{SongQuery, SongUpsert};
-use axum::{
-    extract::State,
-    response::Html,
-    routing::{get, post},
-    Json, Router,
-};
+use axum::{extract::State, response::Html, Json};
 use serde_json::json;
 
 const DEBUG_HTML: &str = include_str!("debug.html");
 const MASTER_HTML: &str = include_str!("master.html");
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/debug", get(debug_page))
-        .route("/debug/master", get(master_page))
-        .route("/debug/master/data", get(master_data))
-        .route("/debug/master/version", post(save_master_version))
-        .route("/debug/master/base-score", post(save_base_score))
-        .route("/debug/master/song", post(save_song))
-}
-
-async fn debug_page() -> Result<Html<&'static str>, AppError> {
+pub(super) async fn debug_page() -> Result<Html<&'static str>, AppError> {
     Ok(Html(DEBUG_HTML))
 }
 
-async fn master_page() -> Result<Html<&'static str>, AppError> {
+pub(super) async fn master_page() -> Result<Html<&'static str>, AppError> {
     Ok(Html(MASTER_HTML))
 }
 
-async fn master_data(State(state): State<AppState>) -> Result<Json<MasterDebugData>, AppError> {
+pub(super) async fn master_data(
+    State(state): State<AppState>,
+) -> Result<Json<MasterDebugData>, AppError> {
     let version = MasterVersionQuery::new(&state.pool)
         .first()
         .await?
@@ -81,7 +68,7 @@ async fn master_data(State(state): State<AppState>) -> Result<Json<MasterDebugDa
     }))
 }
 
-async fn save_master_version(
+pub(super) async fn save_master_version(
     State(state): State<AppState>,
     Json(req): Json<SaveMasterVersionRequest>,
 ) -> Result<Json<MasterSaveResponse>, AppError> {
@@ -93,7 +80,7 @@ async fn save_master_version(
     }))
 }
 
-async fn save_base_score(
+pub(super) async fn save_base_score(
     State(state): State<AppState>,
     Json(req): Json<SaveBaseScoreRequest>,
 ) -> Result<Json<MasterSaveResponse>, AppError> {
@@ -105,7 +92,7 @@ async fn save_base_score(
     }))
 }
 
-async fn save_song(
+pub(super) async fn save_song(
     State(state): State<AppState>,
     Json(req): Json<SaveSongRequest>,
 ) -> Result<Json<MasterSaveResponse>, AppError> {

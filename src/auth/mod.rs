@@ -1,6 +1,7 @@
 use crate::common::ResponseHeader;
 use serde::{Deserialize, Serialize};
 
+pub mod api;
 pub mod lib;
 
 #[derive(Deserialize)]

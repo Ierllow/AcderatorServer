@@ -8,6 +8,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sqlx::MySqlPool;
 
+pub mod api;
 pub mod lib;
 
 pub struct AuthUser {

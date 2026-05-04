@@ -109,9 +109,10 @@ impl AppError {
             AppError::UnsupportedMediaType => 14001,
             AppError::TooManyRequests => 14002,
             AppError::PayloadTooLarge => 14003,
-            AppError::ServiceFailure(_) | AppError::ResponseFailure(_) => 15000,
-            AppError::DataFailure(_) => 15001,
-            AppError::ResourceFailure(_) => 15002,
+            AppError::ServiceFailure(_) => 15000,
+            AppError::ResponseFailure(_) => 15001,
+            AppError::DataFailure(_) => 15002,
+            AppError::ResourceFailure(_) => 15003,
         }
     }
 

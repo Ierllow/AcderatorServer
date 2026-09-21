@@ -199,7 +199,7 @@ jobs:
           with urllib.request.urlopen("http://127.0.0.1:3000/debug") as res:
               body = res.read().decode("utf-8")
               assert res.status == 200, res.status
-              assert "<title>Acderator API Debug</title>" in body
+              assert "<title>API Inspector · Acderator Console</title>" in body
           print("debug-ui smoke test passed")
           PY
 

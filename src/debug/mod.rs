@@ -1,3 +1,4 @@
+use crate::query::master::MasterTableCounts;
 use crate::query::song::SongRecord;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -78,4 +79,22 @@ struct MasterCounts {
     hp_rate_masters: usize,
     sound_sheet_masters: usize,
     result_masters: usize,
+}
+
+impl From<MasterTableCounts> for MasterCounts {
+    fn from(counts: MasterTableCounts) -> Self {
+        Self {
+            master_version: counts.master_version,
+            title_masters: counts.title_masters,
+            song_select_masters: counts.song_select_masters,
+            song_masters: counts.song_masters,
+            score_rate_masters: counts.score_rate_masters,
+            base_score_masters: counts.base_score_masters,
+            judge_zone_masters: counts.judge_zone_masters,
+            base_hp_masters: counts.base_hp_masters,
+            hp_rate_masters: counts.hp_rate_masters,
+            sound_sheet_masters: counts.sound_sheet_masters,
+            result_masters: counts.result_masters,
+        }
+    }
 }

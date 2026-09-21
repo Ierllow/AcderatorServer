@@ -11,6 +11,16 @@ pub struct AppState {
     pub rate_limiter: RateLimiter,
 }
 
+pub trait FromRef<T> {
+    fn from_ref(input: &T) -> Self;
+}
+
+impl FromRef<AppState> for sqlx::MySqlPool {
+    fn from_ref(input: &AppState) -> Self {
+        input.pool.clone()
+    }
+}
+
 #[derive(Clone)]
 pub struct RateLimiter {
     clients: Arc<Mutex<HashMap<String, RateLimitEntry>>>,

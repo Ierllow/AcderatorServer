@@ -1,17 +1,17 @@
-CREATE TABLE user (
+CREATE TABLE IF NOT EXISTS user (
     userid VARCHAR(255) PRIMARY KEY,
     uuid VARCHAR(255) NOT NULL,
     password VARCHAR(255) NOT NULL
 );
 
-CREATE TABLE session (
+CREATE TABLE IF NOT EXISTS session (
     session_id VARCHAR(255) PRIMARY KEY,
     userid VARCHAR(255) NOT NULL,
     last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_session_userid FOREIGN KEY (userid) REFERENCES user(userid)
 );
 
-CREATE TABLE score_session (
+CREATE TABLE IF NOT EXISTS score_session (
     session_id VARCHAR(255) PRIMARY KEY,
     score_id INT NOT NULL,
     userid VARCHAR(255) NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE score_session (
     CONSTRAINT fk_score_session_userid FOREIGN KEY (userid) REFERENCES user(userid)
 );
 
-CREATE TABLE score (
+CREATE TABLE IF NOT EXISTS score (
     id INT AUTO_INCREMENT PRIMARY KEY,
     userid VARCHAR(255) NOT NULL,
     score_id INT NOT NULL,

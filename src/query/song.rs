@@ -1,5 +1,5 @@
 use crate::common::AppError;
-use sqlx::{MySqlPool, QueryBuilder, Row};
+use sqlx::{mysql::MySqlRow, MySqlPool, QueryBuilder, Row};
 
 pub struct SongUpsert {
     pub sid: i32,
@@ -92,18 +92,7 @@ impl<'a> SongQuery<'a> {
         query.push(" ORDER BY sid ASC");
 
         let rows = query.build().fetch_all(self.pool).await?;
-        Ok(rows
-            .into_iter()
-            .map(|row| SongRecord {
-                sid: row.get("sid"),
-                group: row.get("group"),
-                difficulty: row.get("difficulty"),
-                name: row.get("name"),
-                composer: row.get("composer"),
-                start_offset: row.get("start_offset"),
-                bg: row.get("bg"),
-            })
-            .collect())
+        Ok(rows.into_iter().map(song_from_row).collect())
     }
 
     async fn one(self, order_by: &str) -> Result<Option<SongRecord>, AppError> {
@@ -116,15 +105,7 @@ impl<'a> SongQuery<'a> {
         query.push(" LIMIT 1");
 
         let row = query.build().fetch_optional(self.pool).await?;
-        Ok(row.map(|row| SongRecord {
-            sid: row.get("sid"),
-            group: row.get("group"),
-            difficulty: row.get("difficulty"),
-            name: row.get("name"),
-            composer: row.get("composer"),
-            start_offset: row.get("start_offset"),
-            bg: row.get("bg"),
-        }))
+        Ok(row.map(song_from_row))
     }
 
     fn push_where(&self, query: &mut QueryBuilder<'_, sqlx::MySql>) {
@@ -145,5 +126,17 @@ impl<'a> SongQuery<'a> {
                 }
             }
         }
+    }
+}
+
+fn song_from_row(row: MySqlRow) -> SongRecord {
+    SongRecord {
+        sid: row.get("sid"),
+        group: row.get("group"),
+        difficulty: row.get("difficulty"),
+        name: row.get("name"),
+        composer: row.get("composer"),
+        start_offset: row.get("start_offset"),
+        bg: row.get("bg"),
     }
 }

@@ -33,15 +33,36 @@ impl<'a> UserQuery<'a> {
         transaction: &mut Transaction<'_, MySql>,
         userid: u32,
         uuid: &str,
-        password: u32,
+        password: &str,
     ) -> Result<(), AppError> {
-        sqlx::query("INSERT INTO user (userid, uuid, password) VALUES (?, ?, ?)")
+        let result = sqlx::query("INSERT INTO user (userid, uuid, password) VALUES (?, ?, ?)")
             .bind(userid)
             .bind(uuid)
             .bind(password)
             .execute(&mut **transaction)
-            .await?;
+            .await;
 
+        match result {
+            Ok(_) => {}
+            Err(sqlx::Error::Database(error)) if error.code().as_deref() == Some("1062") => {
+                return Err(AppError::Conflict);
+            }
+            Err(error) => return Err(error.into()),
+        }
+
+        Ok(())
+    }
+
+    pub async fn update_password(
+        transaction: &mut Transaction<'_, MySql>,
+        userid: &str,
+        password: &str,
+    ) -> Result<(), AppError> {
+        sqlx::query("UPDATE user SET password = ? WHERE userid = ?")
+            .bind(password)
+            .bind(userid)
+            .execute(&mut **transaction)
+            .await?;
         Ok(())
     }
 

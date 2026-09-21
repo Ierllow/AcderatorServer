@@ -3,13 +3,19 @@ use super::{
     SaveMasterVersionRequest, SaveSongRequest,
 };
 use crate::common::{AppError, AppState};
-use crate::query::master::{BaseScoreQuery, MasterVersionQuery};
+use crate::query::master::{BaseScoreQuery, MasterDataQuery, MasterVersionQuery};
 use crate::query::song::{SongQuery, SongUpsert};
-use axum::{extract::State, response::Html, Json};
+use axum::{
+    extract::State,
+    http::{header, HeaderValue},
+    response::{Html, IntoResponse, Response},
+    Json,
+};
 use serde_json::json;
 
 const DEBUG_HTML: &str = include_str!("debug.html");
 const MASTER_HTML: &str = include_str!("master.html");
+const ADMIN_CSS: &str = include_str!("admin.css");
 
 pub(super) async fn debug_page() -> Result<Html<&'static str>, AppError> {
     Ok(Html(DEBUG_HTML))
@@ -19,51 +25,39 @@ pub(super) async fn master_page() -> Result<Html<&'static str>, AppError> {
     Ok(Html(MASTER_HTML))
 }
 
+pub(super) async fn admin_css() -> Response {
+    let mut response = ADMIN_CSS.into_response();
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/css; charset=utf-8"),
+    );
+    response
+}
+
 pub(super) async fn master_data(
     State(state): State<AppState>,
 ) -> Result<Json<MasterDebugData>, AppError> {
-    let version = MasterVersionQuery::new(&state.pool)
-        .first()
-        .await?
-        .unwrap_or_default();
-    let base_score = BaseScoreQuery::new(&state.pool).first().await?;
-    let songs = SongQuery::new(&state.pool).all().await?;
+    let (version, base_score, songs, counts) = tokio::try_join!(
+        MasterVersionQuery::new(&state.pool).first(),
+        BaseScoreQuery::new(&state.pool).first(),
+        SongQuery::new(&state.pool).all(),
+        MasterDataQuery::counts(&state.pool),
+    )?;
+    let version = version.unwrap_or_default();
     let song_rows: Vec<DebugSong> = songs.into_iter().map(DebugSong::from).collect();
     let base_score_rows = base_score
         .map(|score| vec![json!({ "score": score })])
         .unwrap_or_default();
-    let song_count = song_rows.len();
-    let base_score_count = base_score_rows.len();
     let raw = json!({
         "version_master": version.clone(),
-        "song_masters": song_rows,
-        "base_score_masters": base_score_rows
+        "song_masters": &song_rows,
+        "base_score_masters": &base_score_rows
     });
 
     Ok(Json(MasterDebugData {
         version,
         base_score,
-        counts: MasterCounts {
-            master_version: if raw["version_master"]
-                .as_str()
-                .unwrap_or_default()
-                .is_empty()
-            {
-                0
-            } else {
-                1
-            },
-            title_masters: 0,
-            song_select_masters: 0,
-            song_masters: song_count,
-            score_rate_masters: 0,
-            base_score_masters: base_score_count,
-            judge_zone_masters: 0,
-            base_hp_masters: 0,
-            hp_rate_masters: 0,
-            sound_sheet_masters: 0,
-            result_masters: 0,
-        },
+        counts: MasterCounts::from(counts),
         raw,
     }))
 }

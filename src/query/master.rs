@@ -34,7 +34,7 @@ impl<'a> MasterVersionQuery<'a> {
 
     pub async fn replace(pool: &MySqlPool, version: &str) -> Result<(), AppError> {
         let mut transaction = pool.begin().await?;
-        sqlx::query("TRUNCATE TABLE master_version")
+        sqlx::query("DELETE FROM master_version")
             .execute(&mut *transaction)
             .await?;
         sqlx::query("INSERT INTO master_version (version) VALUES (?)")
@@ -75,7 +75,7 @@ impl<'a> BaseScoreQuery<'a> {
 
     pub async fn replace(pool: &MySqlPool, score: i32) -> Result<(), AppError> {
         let mut transaction = pool.begin().await?;
-        sqlx::query("TRUNCATE TABLE song_base_score_master")
+        sqlx::query("DELETE FROM song_base_score_master")
             .execute(&mut *transaction)
             .await?;
         sqlx::query("INSERT INTO song_base_score_master (score) VALUES (?)")
@@ -89,13 +89,58 @@ impl<'a> BaseScoreQuery<'a> {
 
 pub struct MasterDataQuery;
 
+pub struct MasterTableCounts {
+    pub master_version: usize,
+    pub title_masters: usize,
+    pub song_select_masters: usize,
+    pub song_masters: usize,
+    pub score_rate_masters: usize,
+    pub base_score_masters: usize,
+    pub judge_zone_masters: usize,
+    pub base_hp_masters: usize,
+    pub hp_rate_masters: usize,
+    pub sound_sheet_masters: usize,
+    pub result_masters: usize,
+}
+
 impl MasterDataQuery {
+    pub async fn counts(pool: &MySqlPool) -> Result<MasterTableCounts, AppError> {
+        let row = sqlx::query(
+            "SELECT
+                (SELECT COUNT(*) FROM master_version) AS master_version,
+                (SELECT COUNT(*) FROM title_master) AS title_masters,
+                (SELECT COUNT(*) FROM song_select_master) AS song_select_masters,
+                (SELECT COUNT(*) FROM song_master) AS song_masters,
+                (SELECT COUNT(*) FROM song_score_rate_master) AS score_rate_masters,
+                (SELECT COUNT(*) FROM song_base_score_master) AS base_score_masters,
+                (SELECT COUNT(*) FROM song_judge_zone_master) AS judge_zone_masters,
+                (SELECT COUNT(*) FROM song_base_hp_master) AS base_hp_masters,
+                (SELECT COUNT(*) FROM song_hp_rate_master) AS hp_rate_masters,
+                (SELECT COUNT(*) FROM sound_sheet_name_master) AS sound_sheet_masters,
+                (SELECT COUNT(*) FROM result_master) AS result_masters",
+        )
+        .fetch_one(pool)
+        .await?;
+
+        Ok(MasterTableCounts {
+            master_version: count(&row, "master_version"),
+            title_masters: count(&row, "title_masters"),
+            song_select_masters: count(&row, "song_select_masters"),
+            song_masters: count(&row, "song_masters"),
+            score_rate_masters: count(&row, "score_rate_masters"),
+            base_score_masters: count(&row, "base_score_masters"),
+            judge_zone_masters: count(&row, "judge_zone_masters"),
+            base_hp_masters: count(&row, "base_hp_masters"),
+            hp_rate_masters: count(&row, "hp_rate_masters"),
+            sound_sheet_masters: count(&row, "sound_sheet_masters"),
+            result_masters: count(&row, "result_masters"),
+        })
+    }
+
     pub async fn replace_all(pool: &MySqlPool, root: &MasterDataResponse) -> Result<(), AppError> {
         let mut transaction = pool.begin().await?;
+        clear_master_tables(&mut transaction).await?;
 
-        sqlx::query("TRUNCATE TABLE master_version")
-            .execute(&mut *transaction)
-            .await?;
         sqlx::query("INSERT INTO master_version (version) VALUES (?)")
             .bind(&root.version_master)
             .execute(&mut *transaction)
@@ -201,9 +246,6 @@ impl MasterDataQuery {
         .await?;
 
         if let Some(s) = root.base_score_masters.first() {
-            sqlx::query("TRUNCATE TABLE song_base_score_master")
-                .execute(&mut *transaction)
-                .await?;
             sqlx::query("INSERT INTO song_base_score_master (score) VALUES (?)")
                 .bind(s.score)
                 .execute(&mut *transaction)
@@ -211,9 +253,6 @@ impl MasterDataQuery {
         }
 
         if let Some(h) = root.base_hp_masters.first() {
-            sqlx::query("TRUNCATE TABLE song_base_hp_master")
-                .execute(&mut *transaction)
-                .await?;
             sqlx::query("INSERT INTO song_base_hp_master (hp) VALUES (?)")
                 .bind(h.hp)
                 .execute(&mut *transaction)
@@ -223,6 +262,33 @@ impl MasterDataQuery {
         transaction.commit().await?;
         Ok(())
     }
+}
+
+fn count(row: &sqlx::mysql::MySqlRow, column: &str) -> usize {
+    row.get::<i64, _>(column) as usize
+}
+
+async fn clear_master_tables(transaction: &mut Transaction<'_, MySql>) -> Result<(), AppError> {
+    const TABLES: &[&str] = &[
+        "master_version",
+        "title_master",
+        "song_select_master",
+        "song_master",
+        "song_score_rate_master",
+        "song_base_score_master",
+        "song_judge_zone_master",
+        "song_base_hp_master",
+        "song_hp_rate_master",
+        "sound_sheet_name_master",
+        "result_master",
+    ];
+
+    for table in TABLES {
+        sqlx::query(&format!("DELETE FROM {table}"))
+            .execute(&mut **transaction)
+            .await?;
+    }
+    Ok(())
 }
 
 async fn bulk_insert<'a, T, F>(

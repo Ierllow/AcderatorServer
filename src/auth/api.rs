@@ -5,5 +5,6 @@ pub fn routes() -> Router<AppState> {
     crate::routes! {
         post "/auth/login" => super::lib::login,
         post "/auth/register" => super::lib::register,
+        post "/auth/logout" => super::lib::logout,
     }
 }

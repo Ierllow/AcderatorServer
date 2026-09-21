@@ -1,7 +1,8 @@
+use crate::auth::AuthUser;
 use crate::common::AppError;
+use crate::common::FromRef;
 use crate::common::ResponseHeader;
 use crate::query::score::{ScoreFilter, ScoreQuery};
-use crate::score::{AuthUser, FromRef};
 use axum::{async_trait, extract::FromRequestParts, http::request::Parts};
 use serde::Serialize;
 use sqlx::MySqlPool;
